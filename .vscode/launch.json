@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: auto_maze.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/auto_maze.py",
+            "args": [
+                "-i",
+                "maze.png"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
