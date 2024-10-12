@@ -2,6 +2,7 @@ import numpy as np
 from queue import PriorityQueue
 import logging
 
+
 class MazeSolver:
     def __init__(self, maze):
         self.maze = maze
@@ -17,7 +18,7 @@ class MazeSolver:
             nx, ny = node[0] + dx, node[1] + dy
             if 0 <= nx < self.rows and 0 <= ny < self.cols and self.maze[nx, ny] == 1:
                 neighbors.append((nx, ny))
-        logging.debug(f"Neighbors of {node}: {neighbors}")
+        # logging.debug(f"Neighbors of {node}: {neighbors}")
         return neighbors
 
     def solve(self, start, end):
@@ -32,10 +33,12 @@ class MazeSolver:
             nodes_explored += 1
 
             if nodes_explored % 1000 == 0:
-                logging.debug(f"Explored {nodes_explored} nodes. Current node: {current}")
+                logging.debug(
+                    f"Explored {nodes_explored} nodes. Current node: {current}")
 
             if current == end:
-                logging.info(f"Path found! Total nodes explored: {nodes_explored}")
+                logging.info(
+                    f"Path found! Total nodes explored: {nodes_explored}")
                 break
 
             for next in self.get_neighbors(current):
@@ -52,11 +55,11 @@ class MazeSolver:
         while current and current != start:
             path.append(current)
             current = came_from.get(current)
-        
+
         if current != start:
             logging.warning("No path found")
             return None  # No path found
-        
+
         path.append(start)
         path.reverse()
 

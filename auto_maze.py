@@ -2,7 +2,6 @@ import argparse
 from image_processor import ImageProcessor
 from maze_solver import MazeSolver
 import logging
-import matplotlib.pyplot as plt
 
 # 设置日志级别
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,17 +16,9 @@ def main():
     try:
         logging.info(f"Processing input image: {args.input}")
         # Process the image
-        image_processor = ImageProcessor(args.input)
+        image_processor = ImageProcessor(args.input, debug=args.debug)
         maze_array = image_processor.process_image()
         logging.debug(f"Maze array shape: {maze_array.shape}")
-
-        if args.debug:
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-            ax1.imshow(plt.imread(args.input))
-            ax1.set_title("Original Maze")
-            ax2.imshow(maze_array, cmap='binary')
-            ax2.set_title("Parsed Maze")
-            plt.show()
 
         # Solve the maze
         logging.info("Starting maze solving process")
