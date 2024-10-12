@@ -11,6 +11,8 @@ class ImageProcessor:
         self.image = None
         self.maze_array = None
         self.debug = debug
+        self.entrance = None
+        self.exit = None
 
     def process_image(self):
         # Read the image
@@ -21,61 +23,102 @@ class ImageProcessor:
         logging.info(f"Image shape: {img.shape}")
         self.debug_show(img, "Original Image")
 
-        # Apply Gaussian blur to reduce noise
-        blurred = cv2.GaussianBlur(img, (5, 5), 0)
-        self.debug_show(blurred, "After Gaussian Blur")
+        # Apply simple thresholding
+        _, binary = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY)
+        self.debug_show(binary, "After Thresholding")
 
-        # Use adaptive thresholding to handle different lighting conditions
-        binary = cv2.adaptiveThreshold(
-            blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-        self.debug_show(binary, "After Adaptive Thresholding")
+        # Find the maze boundaries
+        rows, cols = binary.shape
+        top = next(i for i in range(rows) if np.any(binary[i] == 0))
+        bottom = next(i for i in range(rows-1, -1, -1)
+                      if np.any(binary[i] == 0))
+        left = next(j for j in range(cols) if np.any(binary[:, j] == 0))
+        right = next(j for j in range(cols-1, -1, -1)
+                     if np.any(binary[:, j] == 0))
 
-        # Use morphological operations to clean up the image and make black areas larger
-        kernel = np.ones((14, 14), np.uint8)
-        eroded = cv2.erode(binary, kernel, iterations=1)
-        self.debug_show(eroded, "After Erosion")
+        # Crop the image to the maze boundaries
+        cropped = binary[top:bottom+1, left:right+1]
+        self.debug_show(cropped, "Cropped Maze")
 
-        # Find line width (cell size)
-        row_transitions = np.sum(np.abs(np.diff(eroded, axis=1)), axis=1)
-        col_transitions = np.sum(np.abs(np.diff(eroded, axis=0)), axis=0)
-
-        row_line_width = np.median(np.diff(np.where(row_transitions > 0)[0]))
-        col_line_width = np.median(np.diff(np.where(col_transitions > 0)[0]))
-
-        cell_size = int((row_line_width + col_line_width) / 2)
-        logging.info(f"Calculated cell size: {cell_size}")
-
-        # Calculate the number of rows and columns
-        height, width = eroded.shape
-        rows = height // cell_size
-        cols = width // cell_size
-
-        logging.info(f"Maze dimensions: {rows} rows, {cols} columns")
-
-        if rows == 0 or cols == 0:
-            raise ValueError(
-                f"Invalid maze dimensions: {rows}x{cols}. The cell size might be too large.")
+        # Find entrance and exit
+        self.find_entrance_exit(cropped)
 
         # Create the maze array
-        self.maze_array = np.zeros((rows, cols), dtype=int)
-
-        for i in range(rows):
-            for j in range(cols):
-                # Get the center point of each cell
-                center_y = i * cell_size + cell_size // 2
-                center_x = j * cell_size + cell_size // 2
-
-                # Check the color at the center point
-                if eroded[center_y, center_x] == 0:  # Black (obstacle)
-                    self.maze_array[i, j] = 0
-                else:  # White (path)
-                    self.maze_array[i, j] = 1
+        self.maze_array = (cropped == 255).astype(int)
 
         self.image = Image.fromarray(img)
 
         logging.info(f"Maze array shape: {self.maze_array.shape}")
         self.debug_show(self.maze_array, "Final Maze Array")
+        self.original_shape = img.shape
+        self.crop_info = (top, bottom, left, right)
         return self.maze_array
+
+    def find_entrance_exit(self, binary):
+        rows, cols = binary.shape
+        openings = []
+
+        # Function to check if an opening is valid
+        def is_valid_opening(r, c, direction):
+            if direction == 'horizontal':
+                # Check if the opening is at least 3 pixels wide
+                if c + 2 >= cols or binary[r, c] != 255 or binary[r, c+1] != 255 or binary[r, c+2] != 255:
+                    return False
+                # Check if it's connected to the maze (check the pixel below or above)
+                return (r + 1 < rows and binary[r+1, c+1] == 255) or (r > 0 and binary[r-1, c+1] == 255)
+            else:  # vertical
+                if r + 2 >= rows or binary[r, c] != 255 or binary[r+1, c] != 255 or binary[r+2, c] != 255:
+                    return False
+                return (c + 1 < cols and binary[r+1, c+1] == 255) or (c > 0 and binary[r+1, c-1] == 255)
+
+        # Check top and bottom rows
+        for j in range(cols - 2):
+            if is_valid_opening(0, j, 'horizontal'):
+                openings.append((0, j))
+            if is_valid_opening(rows-1, j, 'horizontal'):
+                openings.append((rows-1, j))
+
+        # Check left and right columns
+        for i in range(rows - 2):
+            if is_valid_opening(i, 0, 'vertical'):
+                openings.append((i, 0))
+            if is_valid_opening(i, cols-1, 'vertical'):
+                openings.append((i, cols-1))
+
+        if len(openings) < 2:
+            raise ValueError(
+                f"Expected at least 2 openings, but found {len(openings)}")
+
+        # If we found more than 2 openings, choose the two closest to opposite corners
+        if len(openings) > 2:
+            logging.warning(
+                f"Found {len(openings)} openings, expected 2. Choosing the two closest to opposite corners.")
+            corners = [(0, 0), (0, cols-1), (rows-1, 0), (rows-1, cols-1)]
+            distances = [min(np.linalg.norm(np.array(opening) - np.array(corner))
+                             for corner in corners) for opening in openings]
+            sorted_openings = [x for _, x in sorted(zip(distances, openings))]
+            self.entrance, self.exit = sorted_openings[0], sorted_openings[-1]
+        else:
+            self.entrance, self.exit = openings
+
+        logging.info(f"Entrance: {self.entrance}, Exit: {self.exit}")
+
+        if self.debug:
+            marked = cv2.cvtColor(binary, cv2.COLOR_GRAY2RGB)
+
+            # 使用更大的圆形标记入口和出口
+            circle_radius = 10  # 增加圆的半径
+            circle_thickness = 3  # 增加圆的线条粗细
+
+            # 绘制入口（绿色）
+            cv2.circle(marked, (self.entrance[1], self.entrance[0]),
+                       circle_radius, (0, 255, 0), circle_thickness)
+
+            # 绘制出口（红色）
+            cv2.circle(marked, (self.exit[1], self.exit[0]),
+                       circle_radius, (0, 0, 255), circle_thickness)
+
+            self.debug_show(marked, "Maze with Entrance and Exit")
 
     def debug_show(self, img, title):
         if self.debug:
@@ -89,11 +132,34 @@ class ImageProcessor:
             plt.show()
 
     def draw_solution(self, path):
-        draw = ImageDraw.Draw(self.image)
-        for i in range(len(path) - 1):
-            start = path[i][1], path[i][0]
-            end = path[i+1][1], path[i+1][0]
-            draw.line([start, end], fill=128, width=2)
+        # 创建一个与原始图像大小相同的空白图像
+        solution_image = Image.new(
+            'RGB', (self.original_shape[1], self.original_shape[0]), color='white')
+        draw = ImageDraw.Draw(solution_image)
+
+        # 调整路径坐标以匹配原始图像
+        adjusted_path = self.adjust_path_to_original(path)
+
+        # 使用亮绿色绘制路径
+        for i in range(len(adjusted_path) - 1):
+            start = adjusted_path[i][1], adjusted_path[i][0]
+            end = adjusted_path[i+1][1], adjusted_path[i+1][0]
+            draw.line([start, end], fill=(0, 255, 0), width=2)  # 亮绿色
+
+        # 将解决方案叠加到原始图像上
+        self.image = Image.open(self.image_path).convert('RGB')
+        self.image = Image.blend(self.image, solution_image, 0.5)
+
+        # 展示最终结果
+        plt.figure(figsize=(10, 10))
+        plt.imshow(np.array(self.image))
+        plt.title('Maze Solution')
+        plt.axis('off')
+        plt.show()
+
+    def adjust_path_to_original(self, path):
+        top, bottom, left, right = self.crop_info
+        return [(y + top, x + left) for y, x in path]
 
     def save_image(self, output_path):
         self.image.save(output_path)

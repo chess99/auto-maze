@@ -4,10 +4,13 @@ import logging
 
 
 class MazeSolver:
-    def __init__(self, maze):
+    def __init__(self, maze, entrance, exit):
         self.maze = maze
         self.rows, self.cols = maze.shape
+        self.entrance = entrance
+        self.exit = exit
         logging.debug(f"Maze shape: {self.rows}x{self.cols}")
+        logging.debug(f"Entrance: {self.entrance}, Exit: {self.exit}")
 
     def heuristic(self, a, b):
         return np.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
@@ -18,14 +21,13 @@ class MazeSolver:
             nx, ny = node[0] + dx, node[1] + dy
             if 0 <= nx < self.rows and 0 <= ny < self.cols and self.maze[nx, ny] == 1:
                 neighbors.append((nx, ny))
-        # logging.debug(f"Neighbors of {node}: {neighbors}")
         return neighbors
 
-    def solve(self, start, end):
+    def solve(self):
         frontier = PriorityQueue()
-        frontier.put((0, start))
-        came_from = {start: None}
-        cost_so_far = {start: 0}
+        frontier.put((0, self.entrance))
+        came_from = {self.entrance: None}
+        cost_so_far = {self.entrance: 0}
         nodes_explored = 0
 
         while not frontier.empty():
@@ -36,7 +38,7 @@ class MazeSolver:
                 logging.debug(
                     f"Explored {nodes_explored} nodes. Current node: {current}")
 
-            if current == end:
+            if current == self.exit:
                 logging.info(
                     f"Path found! Total nodes explored: {nodes_explored}")
                 break
@@ -45,22 +47,22 @@ class MazeSolver:
                 new_cost = cost_so_far[current] + 1
                 if next not in cost_so_far or new_cost < cost_so_far[next]:
                     cost_so_far[next] = new_cost
-                    priority = new_cost + self.heuristic(end, next)
+                    priority = new_cost + self.heuristic(self.exit, next)
                     frontier.put((priority, next))
                     came_from[next] = current
 
         # Reconstruct path
         path = []
-        current = end
-        while current and current != start:
+        current = self.exit
+        while current and current != self.entrance:
             path.append(current)
             current = came_from.get(current)
 
-        if current != start:
+        if current != self.entrance:
             logging.warning("No path found")
             return None  # No path found
 
-        path.append(start)
+        path.append(self.entrance)
         path.reverse()
 
         logging.info(f"Path length: {len(path)}")
