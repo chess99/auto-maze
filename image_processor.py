@@ -4,6 +4,8 @@ from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 import logging
 
+# 添加新的导入
+
 
 class ImageProcessor:
     def __init__(self, image_path, debug=False):
@@ -13,8 +15,21 @@ class ImageProcessor:
         self.debug = debug
         self.entrance = None
         self.exit = None
+        self.user_points = []  # 用于存储用户选择的点
 
-    def process_image(self):
+    # 添加新的方法来处理鼠标点击事件
+    def onclick(self, event):
+        if event.xdata is not None and event.ydata is not None:
+            x, y = int(event.xdata), int(event.ydata)
+            self.user_points.append((y, x))  # 注意：我们存储的是 (row, col) 格式
+            if len(self.user_points) == 1:
+                plt.plot(x, y, 'go', markersize=10)  # 绿色表示入口
+            elif len(self.user_points) == 2:
+                plt.plot(x, y, 'ro', markersize=10)  # 红色表示出口
+                plt.gcf().canvas.mpl_disconnect(self.cid)  # 断开连接
+            plt.draw()
+
+    def process_image(self, manual_selection=False):
         # Read the image
         img = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
@@ -41,7 +56,7 @@ class ImageProcessor:
         self.debug_show(cropped, "Cropped Maze")
 
         # Find entrance and exit
-        self.find_entrance_exit(cropped)
+        self.find_entrance_exit(cropped, manual_selection)
 
         # Create the maze array
         self.maze_array = (cropped == 255).astype(int)
@@ -54,52 +69,68 @@ class ImageProcessor:
         self.crop_info = (top, bottom, left, right)
         return self.maze_array
 
-    def find_entrance_exit(self, binary):
-        rows, cols = binary.shape
-        openings = []
+    def find_entrance_exit(self, binary, manual_selection=False):
+        if manual_selection:
+            plt.figure(figsize=(10, 10))
+            plt.imshow(binary, cmap='gray')
+            plt.title("Click to select entrance and exit")
+            plt.axis('off')
+            self.cid = plt.gcf().canvas.mpl_connect('button_press_event', self.onclick)
+            plt.show()
 
-        # Function to check if an opening is valid
-        def is_valid_opening(r, c, direction):
-            if direction == 'horizontal':
-                # Check if the opening is at least 3 pixels wide
-                if c + 2 >= cols or binary[r, c] != 255 or binary[r, c+1] != 255 or binary[r, c+2] != 255:
-                    return False
-                # Check if it's connected to the maze (check the pixel below or above)
-                return (r + 1 < rows and binary[r+1, c+1] == 255) or (r > 0 and binary[r-1, c+1] == 255)
-            else:  # vertical
-                if r + 2 >= rows or binary[r, c] != 255 or binary[r+1, c] != 255 or binary[r+2, c] != 255:
-                    return False
-                return (c + 1 < cols and binary[r+1, c+1] == 255) or (c > 0 and binary[r+1, c-1] == 255)
+            if len(self.user_points) != 2:
+                raise ValueError(
+                    "You must select exactly two points: entrance and exit")
 
-        # Check top and bottom rows
-        for j in range(cols - 2):
-            if is_valid_opening(0, j, 'horizontal'):
-                openings.append((0, j))
-            if is_valid_opening(rows-1, j, 'horizontal'):
-                openings.append((rows-1, j))
-
-        # Check left and right columns
-        for i in range(rows - 2):
-            if is_valid_opening(i, 0, 'vertical'):
-                openings.append((i, 0))
-            if is_valid_opening(i, cols-1, 'vertical'):
-                openings.append((i, cols-1))
-
-        if len(openings) < 2:
-            raise ValueError(
-                f"Expected at least 2 openings, but found {len(openings)}")
-
-        # If we found more than 2 openings, choose the two closest to opposite corners
-        if len(openings) > 2:
-            logging.warning(
-                f"Found {len(openings)} openings, expected 2. Choosing the two closest to opposite corners.")
-            corners = [(0, 0), (0, cols-1), (rows-1, 0), (rows-1, cols-1)]
-            distances = [min(np.linalg.norm(np.array(opening) - np.array(corner))
-                             for corner in corners) for opening in openings]
-            sorted_openings = [x for _, x in sorted(zip(distances, openings))]
-            self.entrance, self.exit = sorted_openings[0], sorted_openings[-1]
+            self.entrance, self.exit = self.user_points
         else:
-            self.entrance, self.exit = openings
+            # 原有的自动检测逻辑保持不变
+            rows, cols = binary.shape
+            openings = []
+
+            # Function to check if an opening is valid
+            def is_valid_opening(r, c, direction):
+                if direction == 'horizontal':
+                    # Check if the opening is at least 3 pixels wide
+                    if c + 2 >= cols or binary[r, c] != 255 or binary[r, c+1] != 255 or binary[r, c+2] != 255:
+                        return False
+                    # Check if it's connected to the maze (check the pixel below or above)
+                    return (r + 1 < rows and binary[r+1, c+1] == 255) or (r > 0 and binary[r-1, c+1] == 255)
+                else:  # vertical
+                    if r + 2 >= rows or binary[r, c] != 255 or binary[r+1, c] != 255 or binary[r+2, c] != 255:
+                        return False
+                    return (c + 1 < cols and binary[r+1, c+1] == 255) or (c > 0 and binary[r+1, c-1] == 255)
+
+            # Check top and bottom rows
+            for j in range(cols - 2):
+                if is_valid_opening(0, j, 'horizontal'):
+                    openings.append((0, j))
+                if is_valid_opening(rows-1, j, 'horizontal'):
+                    openings.append((rows-1, j))
+
+            # Check left and right columns
+            for i in range(rows - 2):
+                if is_valid_opening(i, 0, 'vertical'):
+                    openings.append((i, 0))
+                if is_valid_opening(i, cols-1, 'vertical'):
+                    openings.append((i, cols-1))
+
+            if len(openings) < 2:
+                raise ValueError(
+                    f"Expected at least 2 openings, but found {len(openings)}")
+
+            # If we found more than 2 openings, choose the two closest to opposite corners
+            if len(openings) > 2:
+                logging.warning(
+                    f"Found {len(openings)} openings, expected 2. Choosing the two closest to opposite corners.")
+                corners = [(0, 0), (0, cols-1), (rows-1, 0), (rows-1, cols-1)]
+                distances = [min(np.linalg.norm(np.array(opening) - np.array(corner))
+                                 for corner in corners) for opening in openings]
+                sorted_openings = [x for _, x in sorted(
+                    zip(distances, openings))]
+                self.entrance, self.exit = sorted_openings[0], sorted_openings[-1]
+            else:
+                self.entrance, self.exit = openings
 
         logging.info(f"Entrance: {self.entrance}, Exit: {self.exit}")
 

@@ -17,13 +17,16 @@ def main():
                         help="Output solved maze image file path")
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug mode")
+    parser.add_argument("--manual", action="store_true",
+                        help="Enable manual selection of entrance and exit")
     args = parser.parse_args()
 
     try:
         logging.info(f"Processing input image: {args.input}")
         # Process the image
         image_processor = ImageProcessor(args.input, debug=args.debug)
-        maze_array = image_processor.process_image()
+        maze_array = image_processor.process_image(
+            manual_selection=args.manual)
         logging.debug(f"Maze array shape: {maze_array.shape}")
 
         # Solve the maze
