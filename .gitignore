@@ -112,3 +112,4 @@ Thumbs.db
 
 # Project specific
 *.png
+!images/*.png

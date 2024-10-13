@@ -3,10 +3,16 @@
 这是一个迷宫图片分析程序，可以分析迷宫图片，并生成迷宫图片的解决方案。
 通过调用 OpenCV 和 Pillow 库来处理图片, 使用 A\* 算法来寻找最短路径。
 
+代码由 cursor 生成。
+
+迷宫图片来源:  
+<https://tech.meituan.com/404.html>  
+<https://tools.2weima.com/migong>
+
 ## 功能
 
 1. 传入迷宫图片
-2. 识别迷宫图片中的迷宫, 生成迷宫的点阵表示
+2. 识别迷宫图片中的迷宫，生成迷宫的二值化数组表示
 3. 使用 A\* 算法寻找最短路径
 4. 绘制迷宫和最短路径
 5. 支持手动选择迷宫的入口和出口
@@ -24,27 +30,27 @@ pip install -r requirements.txt
 运行以下命令来分析和解决迷宫:
 
 ```bash
-python auto_maze.py -i maze.png
+python auto_maze.py -i ./images/maze.png
 ```
 
 其中 `maze.png` 是您的迷宫图片文件名。
 
 ### 调试模式
 
-如果你想查看解析后的迷宫点阵数据，可以使用 `--debug` 参数：
+如果你想查看解析过程中的中间结果，可以使用 `--debug` 参数：
 
 ```bash
-python auto_maze.py -i maze.png --debug
+python auto_maze.py -i ./images/maze.png --debug
 ```
 
-这将在解析迷宫后显示一个窗口，展示解析得到的点阵数据。
+这将在处理过程中显示多个窗口，展示图像处理的各个步骤。
 
 ### 手动选择入口和出口
 
 如果你想手动选择迷宫的入口和出口，可以使用 `--manual` 参数：
 
 ```bash
-python auto_maze.py -i maze.png --manual
+python auto_maze.py -i ./images/maze.png --manual
 ```
 
 这将显示迷宫图像，并允许你点击两个点来选择入口（绿色）和出口（红色）。
@@ -53,7 +59,7 @@ python auto_maze.py -i maze.png --manual
 
 - `-i` 或 `--input`: 指定输入的迷宫图片文件路径（必需）
 - `-o` 或 `--output`: 指定输出的解决方案图片文件路径（可选，默认为 'solved_maze.png'）
-- `--debug`: 启用调试模式，显示解析后的迷宫点阵数据（可选）
+- `--debug`: 启用调试模式，显示图像处理的中间步骤（可选）
 - `--manual`: 启用手动选择入口和出口模式（可选）
 
 ## 注意事项
