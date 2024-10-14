@@ -10,7 +10,8 @@ interface Node {
 export const solveMaze = (
   maze: number[][],
   start: [number, number],
-  end: [number, number]
+  end: [number, number],
+  progressCallback: () => void
 ): number[][] => {
   const [startY, startX] = start;
   const [endY, endX] = end;
@@ -32,6 +33,8 @@ export const solveMaze = (
   };
 
   openList.push(startNode);
+
+  let iterationCount = 0;
 
   while (openList.length > 0) {
     let currentNode = openList[0];
@@ -105,6 +108,11 @@ export const solveMaze = (
       ) {
         openList.push(neighbor);
       }
+    }
+
+    iterationCount++;
+    if (iterationCount % 1000 === 0) {
+      progressCallback();
     }
   }
 
