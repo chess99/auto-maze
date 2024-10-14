@@ -20,7 +20,7 @@ export class ImageProcessor {
     cv.cvtColor(this.image, gray, cv.COLOR_RGBA2GRAY);
 
     const binary = new cv.Mat();
-    cv.threshold(gray, binary, 128, 255, cv.THRESH_BINARY);
+    cv.threshold(gray, binary, 128, 255, cv.THRESH_BINARY_INV);
 
     this.cropInfo = this.findMazeBoundaries(binary);
     const [top, bottom, left, right] = this.cropInfo;
@@ -50,8 +50,11 @@ export class ImageProcessor {
 
     // Find top
     for (let i = 0; i < rows; i++) {
-      const rowData = binary.row(i).data32F;
-      if (rowData.filter((val) => val === 0).length / cols >= minWallRatio) {
+      const rowData = binary.row(i).data;
+      if (
+        rowData.filter((val: number) => val === 255).length / cols >=
+        minWallRatio
+      ) {
         top = i;
         break;
       }
@@ -59,8 +62,11 @@ export class ImageProcessor {
 
     // Find bottom
     for (let i = rows - 1; i >= 0; i--) {
-      const rowData = binary.row(i).data32F;
-      if (rowData.filter((val) => val === 0).length / cols >= minWallRatio) {
+      const rowData = binary.row(i).data;
+      if (
+        rowData.filter((val: number) => val === 255).length / cols >=
+        minWallRatio
+      ) {
         bottom = i;
         break;
       }
@@ -68,8 +74,11 @@ export class ImageProcessor {
 
     // Find left
     for (let j = 0; j < cols; j++) {
-      const colData = binary.col(j).data32F;
-      if (colData.filter((val) => val === 0).length / rows >= minWallRatio) {
+      const colData = binary.col(j).data;
+      if (
+        colData.filter((val: number) => val === 255).length / rows >=
+        minWallRatio
+      ) {
         left = j;
         break;
       }
@@ -77,8 +86,11 @@ export class ImageProcessor {
 
     // Find right
     for (let j = cols - 1; j >= 0; j--) {
-      const colData = binary.col(j).data32F;
-      if (colData.filter((val) => val === 0).length / rows >= minWallRatio) {
+      const colData = binary.col(j).data;
+      if (
+        colData.filter((val: number) => val === 255).length / rows >=
+        minWallRatio
+      ) {
         right = j;
         break;
       }
@@ -95,7 +107,7 @@ export class ImageProcessor {
     for (let i = 0; i < rows; i++) {
       const row = [];
       for (let j = 0; j < cols; j++) {
-        row.push(cropped.ucharPtr(i, j)[0] === 255 ? 1 : 0);
+        row.push(cropped.ucharPtr(i, j)[0] === 255 ? 0 : 1);
       }
       maze.push(row);
     }
@@ -206,5 +218,28 @@ export class ImageProcessor {
 
   getCropInfo(): [number, number, number, number] {
     return this.cropInfo;
+  }
+
+  getCroppedImage(): ImageData {
+    const [top, bottom, left, right] = this.cropInfo;
+    const rect = new cv.Rect(left, top, right - left + 1, bottom - top + 1);
+    const cropped = this.image.roi(rect);
+    const dst = new cv.Mat();
+    cv.cvtColor(cropped, dst, cv.COLOR_RGBA2GRAY);
+    cv.threshold(dst, dst, 128, 255, cv.THRESH_BINARY_INV);
+
+    const dstRGBA = new cv.Mat();
+    cv.cvtColor(dst, dstRGBA, cv.COLOR_GRAY2RGBA);
+
+    const imageData = new ImageData(
+      new Uint8ClampedArray(dstRGBA.data),
+      dstRGBA.cols,
+      dstRGBA.rows
+    );
+
+    cropped.delete();
+    dst.delete();
+    dstRGBA.delete();
+    return imageData;
   }
 }

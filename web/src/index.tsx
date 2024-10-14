@@ -1,9 +1,9 @@
 import cv from "@techstark/opencv-js";
 import React from "react";
-import * as ReactDOM from "react-dom";
+import ReactDOM from "react-dom";
 import App from "./App";
 
-cv.onRuntimeInitialized = () => {
+const renderApp = () => {
   ReactDOM.render(
     <React.StrictMode>
       <App />
@@ -11,3 +11,9 @@ cv.onRuntimeInitialized = () => {
     document.getElementById("root")
   );
 };
+
+if (cv.Mat) {
+  renderApp();
+} else {
+  cv.onRuntimeInitialized = renderApp;
+}
