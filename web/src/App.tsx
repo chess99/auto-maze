@@ -1,9 +1,10 @@
+import cv from "@techstark/opencv-js";
 import React, { useState } from "react";
+import { ImageProcessor } from "./ImageProcessor";
+import { MazeSolver } from "./MazeSolver";
+import ControlPanel from "./components/ControlPanel";
 import ImageUploader from "./components/ImageUploader";
 import MazeDisplay from "./components/MazeDisplay";
-import ControlPanel from "./components/ControlPanel";
-import { processImage } from "./services/imageProcessor";
-import { solveMaze } from "./services/mazeSolver";
 import { createImageData } from "./utils/imageUtils";
 
 const App: React.FC = () => {
@@ -12,55 +13,45 @@ const App: React.FC = () => {
   const [solution, setSolution] = useState<number[][] | null>(null);
   const [entrance, setEntrance] = useState<[number, number] | null>(null);
   const [exit, setExit] = useState<[number, number] | null>(null);
-  const [croppedArea, setCroppedArea] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
+  const [cropInfo, setCropInfo] = useState<
+    [number, number, number, number] | null
+  >(null);
   const [processing, setProcessing] = useState<boolean>(false);
-  const [status, setStatus] = useState<string>("");
 
   const handleImageUpload = async (file: File) => {
     setProcessing(true);
-    setStatus("Processing image...");
     const imageData = await createImageData(file);
     setMazeImage(imageData);
-    const { mazeArray, entrance, exit, croppedArea } = await processImage(
-      imageData
-    );
-    setMazeArray(mazeArray);
-    setEntrance(entrance);
-    setExit(exit);
-    setCroppedArea(croppedArea);
-    setSolution(null);
+
+    await new Promise((resolve) => {
+      if (cv.Mat) resolve(null);
+      else cv.onRuntimeInitialized = () => resolve(null);
+    });
+    const imageProcessor = new ImageProcessor(imageData);
+    const processedMaze = imageProcessor.processImage();
+    setMazeArray(processedMaze);
+    setEntrance(imageProcessor.getEntrance());
+    setExit(imageProcessor.getExit());
+    setCropInfo(imageProcessor.getCropInfo());
+
     setProcessing(false);
-    setStatus("");
   };
 
-  const handleSolveMaze = async () => {
+  const handleSolveMaze = () => {
     if (mazeArray && entrance && exit) {
       setProcessing(true);
-      setStatus("Solving maze...");
-      let dotCount = 0;
-      const path = await solveMaze(mazeArray, entrance, exit, () => {
-        dotCount = (dotCount + 1) % 4;
-        setStatus(`Solving maze${".".repeat(dotCount)}`);
-      });
-      setSolution(path);
+      const solver = new MazeSolver(mazeArray, entrance, exit);
+      const path = solver.solve();
+      if (path && cropInfo) {
+        const adjustedPath = path.map(([y, x]) => [
+          y + cropInfo[0],
+          x + cropInfo[2],
+        ]);
+        setSolution(adjustedPath);
+      } else {
+        console.error("No path found");
+      }
       setProcessing(false);
-      setStatus(path.length > 0 ? "Maze solved!" : "No solution found.");
-    }
-  };
-
-  const handleManualSelection = (
-    point: [number, number],
-    isEntrance: boolean
-  ) => {
-    if (isEntrance) {
-      setEntrance(point);
-    } else {
-      setExit(point);
     }
   };
 
@@ -75,18 +66,9 @@ const App: React.FC = () => {
             solution={solution}
             entrance={entrance}
             exit={exit}
-            onPointSelect={handleManualSelection}
-            croppedArea={croppedArea}
+            cropInfo={cropInfo}
           />
-          <ControlPanel
-            onSolve={handleSolveMaze}
-            hasImage={!!mazeImage}
-            hasSolution={!!solution}
-            entrance={entrance}
-            exit={exit}
-            processing={processing}
-          />
-          {status && <p>{status}</p>}
+          <ControlPanel onSolve={handleSolveMaze} processing={processing} />
         </>
       )}
     </div>

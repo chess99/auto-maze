@@ -1,12 +1,11 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 interface Props {
   mazeImage: ImageData;
   solution: number[][] | null;
   entrance: [number, number] | null;
   exit: [number, number] | null;
-  onPointSelect: (point: [number, number], isEntrance: boolean) => void;
-  croppedArea: { x: number; y: number; width: number; height: number } | null;
+  cropInfo: [number, number, number, number] | null;
 }
 
 const MazeDisplay: React.FC<Props> = ({
@@ -14,8 +13,7 @@ const MazeDisplay: React.FC<Props> = ({
   solution,
   entrance,
   exit,
-  onPointSelect,
-  croppedArea,
+  cropInfo,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [selectingEntrance, setSelectingEntrance] = useState<boolean>(true);
@@ -30,13 +28,13 @@ const MazeDisplay: React.FC<Props> = ({
           // Calculate scale to fit the image within 800x600 area
           const maxWidth = 800;
           const maxHeight = 600;
-          const scaleX = maxWidth / (croppedArea?.width || mazeImage.width);
-          const scaleY = maxHeight / (croppedArea?.height || mazeImage.height);
+          const scaleX = maxWidth / (cropInfo?.[2] || mazeImage.width);
+          const scaleY = maxHeight / (cropInfo?.[3] || mazeImage.height);
           const newScale = Math.min(scaleX, scaleY, 1);
           setScale(newScale);
 
-          canvas.width = (croppedArea?.width || mazeImage.width) * newScale;
-          canvas.height = (croppedArea?.height || mazeImage.height) * newScale;
+          canvas.width = (cropInfo?.[2] || mazeImage.width) * newScale;
+          canvas.height = (cropInfo?.[3] || mazeImage.height) * newScale;
 
           // Clear the canvas before redrawing
           ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -44,13 +42,13 @@ const MazeDisplay: React.FC<Props> = ({
           const imageBitmap = await createImageBitmap(mazeImage);
 
           // Draw the cropped image
-          if (croppedArea) {
+          if (cropInfo) {
             ctx.drawImage(
               imageBitmap,
-              croppedArea.x,
-              croppedArea.y,
-              croppedArea.width,
-              croppedArea.height,
+              cropInfo[0],
+              cropInfo[1],
+              cropInfo[2],
+              cropInfo[3],
               0,
               0,
               canvas.width,
@@ -100,7 +98,7 @@ const MazeDisplay: React.FC<Props> = ({
     };
 
     drawMaze();
-  }, [mazeImage, solution, entrance, exit, croppedArea]);
+  }, [mazeImage, solution, entrance, exit, cropInfo]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
